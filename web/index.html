@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>8085 Microprocessor Studio | Two-Pass Assembler & Simulator</title>
+  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- Motion library: GSAP (CDN). If it cannot load offline, all animation falls back to CSS — nothing depends on it. -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">85</div>
+      <div class="brand-text">
+        <div class="brand-title-row">
+          <h1 class="brand-title">8085 Visualizer &amp; Microprocessor Studio</h1>
+          <div class="brand-badges">
+            <span class="badge">VisuAlgo Edition</span>
+            <span class="badge">Two-Pass Assembler</span>
+          </div>
+        </div>
+        <p class="brand-subtitle">Interactive Architecture • Animated Machine Cycles • Real-Time Visualizer</p>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <nav class="header-nav" aria-label="Main Navigation">
+        <button class="nav-tab active" data-target="pane-visual">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          Interactive Visualizer
+        </button>
+        <button class="nav-tab" data-target="pane-studio">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          Assembler Studio
+        </button>
+        <button class="nav-tab" data-target="pane-sim">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>
+          CPU &amp; Memory Grid
+        </button>
+        <button class="nav-tab" data-target="pane-export">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 15 21 19 3 19 3 15"></polyline><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Symbol Table &amp; HEX
+        </button>
+      </nav>
+
+      <div class="header-actions">
+        <button id="btn-sound-toggle" class="btn btn-secondary sound-toggle-btn" title="Toggle Sound Effects">🔊 Audio: ON</button>
+        <div class="theme-selector-wrap" title="Change Visual Color Theme">
+          <label for="theme-select">🎨</label>
+          <select id="theme-select">
+            <option value="indigo">🌌 Modern Indigo (Default)</option>
+            <option value="cyberpunk">⚡ Cyberpunk Neon</option>
+            <option value="dracula">🟣 Dracula Purple</option>
+            <option value="retro">📟 8085 Trainer Kit</option>
+            <option value="light">☀️ Clean Light</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Controls Action Bar -->
+  <div style="padding: 12px 24px 0 24px;">
+    <div class="controls-bar">
+      <div class="sample-selector">
+        <label for="sample-select">Program Library:</label>
+        <select id="sample-select">
+          <option value="addition">1. Addition of Two 8-Bit Numbers (Carry)</option>
+          <option value="subtraction">2. Subtraction of Two 8-Bit Numbers (Borrow)</option>
+          <option value="multiplication">3. Multiplication by Repeated Addition</option>
+          <option value="largest">4. Find Largest Number in an Array</option>
+          <option value="bubble_sort">5. Bubble Sort (Ascending Order)</option>
+          <option value="fibonacci">6. Fibonacci Series Generation</option>
+          <option value="block_transfer">7. Block Transfer of Data</option>
+          <option value="factorial">8. Factorial Calculation (N!)</option>
+          <option value="sixteen_bit_add">9. 16-Bit Addition (LHLD, DAD, SHLD)</option>
+          <option value="stack_demo">10. Subroutine & Stack Demo (CALL, RET, PUSH, POP)</option>
+        </select>
+      </div>
+
+      <div class="action-buttons">
+        <button id="btn-assemble" class="btn btn-primary" title="Two-Pass Assembly (Labels & Directives)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+          Assemble (Pass 1 & 2)
+        </button>
+        <button id="btn-reset" class="btn btn-danger" title="Reset 8085 CPU">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+          Reset CPU
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <!-- Pane 0: Interactive Visualizer & Architecture Simulation (Default, VisuAlgo Style) -->
+    <div id="pane-visual" class="tab-pane active">
+      <!-- Welcome Hero Banner (Compact) -->
+      <div class="welcome-hero compact">
+        <div class="welcome-text">
+          <div class="welcome-badge">⚡ 8085 CPU ARCHITECTURE</div>
+          <h2>⚡ 8085 CPU Visualizer & Microprocessor Studio</h2>
+          <p>An interactive, step-by-step visualizer for the Intel 8085 microprocessor.</p>
+        </div>
+        <div class="quick-presets">
+          <span class="quick-label">⚡ 1-Click Stories:</span>
+          <button class="btn btn-preset" data-preset="add-easy">➕ Add 5 + 3</button>
+          <button class="btn btn-preset" data-preset="add-carry">💥 Carry Demo (255+1)</button>
+          <button class="btn btn-preset" data-preset="sub-borrow">➖ Subtraction (10-4)</button>
+          <button class="btn btn-preset" data-preset="mult-loop">✖ Multiply (3×4)</button>
+          <button class="btn btn-preset" data-preset="find-max">🏆 Find Largest</button>
+        </div>
+      </div>
+
+      <!-- Unified Single-Window Studio Grid: Visual Stage on Left, Story & Deck on Right -->
+      <div class="viz-studio-layout">
+        <!-- Left Side: Visual Execution Stage (Player + SVG Diagram + Big Math Block Card) -->
+        <div class="viz-stage-col">
+      <!-- VisuAlgo Simulation Control Bar -->
+      <div class="video-player-bar sim-player-bar">
+        <div class="sim-toolbar-top">
+          <div class="video-controls-left sim-controls-left">
+            <button id="btn-vplay" class="btn btn-success btn-lg btn-sim-play" title="Start / Pause CPU Simulation">▶ Start Simulation</button>
+            <button id="btn-vback" class="btn btn-secondary" title="Step Back 1 Instruction">⏮ Back</button>
+            <button id="btn-vstep" class="btn btn-secondary" title="Step Forward 1 Instruction">Next ⏭</button>
+            <button id="btn-vreplay" class="btn btn-secondary" title="Replay Simulation from Step 1">↻ Replay</button>
+            <button id="btn-vreset" class="btn btn-danger" title="Reset CPU & Simulation">⏹ Reset</button>
+          </div>
+
+          <div class="video-controls-right sim-controls-right">
+            <div class="speed-control">
+              <label for="v-speed-sel">⏱ Speed:</label>
+              <select id="v-speed-sel">
+                <option value="0.1">0.1x (Very Slow)</option>
+                <option value="0.25" selected>0.25x (Recommended)</option>
+                <option value="0.5">0.5x (Slow Study)</option>
+                <option value="1">1.0x (Normal)</option>
+                <option value="2">2.0x (Fast)</option>
+              </select>
+            </div>
+            <label class="toggle-control" title="Auto-pause after each instruction for easy reading">
+              <input type="checkbox" id="chk-auto-pause">
+              <span>Pause Per Step</span>
+            </label>
+            <label class="toggle-control" title="Animate Fetch, Decode, Execute, Writeback machine cycles">
+              <input type="checkbox" id="chk-micro-cycles" checked>
+              <span>Micro-Cycles</span>
+            </label>
+            <button id="btn-expand-viz" class="btn btn-secondary btn-sm btn-expand" title="Toggle Full Width / Expanded View">⛶ Expand View</button>
+          </div>
+        </div>
+
+        <div class="video-scrubber-wrap sim-scrubber-wrap">
+          <div class="scrubber-header">
+            <div class="scrubber-label-group">
+              <span class="scrubber-label">⚡ Simulation Timeline:</span>
+              <span id="v-step-info" class="v-step-info">Step 0 / 0</span>
+            </div>
+            <span id="v-status-badge" class="v-badge status-ready">READY</span>
+          </div>
+          <input type="range" id="v-scrubber" min="0" max="0" value="0" class="video-slider" title="Drag timeline slider to scrub forward/backward">
+        </div>
+      </div>
+
+      <!-- Main Visual Stage: Intel 8085 Microprocessor Architecture Diagram -->
+      <div class="architecture-canvas-wrap">
+        <svg id="svg-cpu" viewBox="0 0 960 510" class="architecture-svg">
+          <!-- Definitions for glowing filters and arrows -->
+          <defs>
+            <filter id="glow-gold" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+            <filter id="glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+            <filter id="glow-purple" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+            <marker id="arrow-gold" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 8 5 L 0 9 z" fill="#f59e0b" />
+            </marker>
+            <marker id="arrow-cyan" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 8 5 L 0 9 z" fill="#00e5ff" />
+            </marker>
+          </defs>
+
+          <!-- SVG Blueprint Grid & Outer CPU Boundary -->
+          <rect x="15" y="15" width="770" height="480" rx="14" class="svg-chip-boundary" />
+          <text x="35" y="40" class="svg-chip-title">INTEL 8085 CPU CORE (8-BIT NMOS ARCHITECTURE)</text>
+
+          <!-- BUSES -->
+          <!-- 16-bit Address Bus (Gold) -->
+          <path id="svg-path-addr" d="M 720 90 L 755 90 L 755 420 L 812 420" class="svg-bus bus-addr" />
+          <g id="badge-addr-bus" transform="translate(778, 295) rotate(90)">
+            <rect x="-65" y="-10" width="130" height="20" rx="4" fill="#060c18" stroke="rgba(245, 158, 11, 0.55)" stroke-width="1.2" />
+            <text x="0" y="0" dominant-baseline="middle" class="svg-bus-label bus-addr-label" text-anchor="middle">16-BIT ADDRESS BUS</text>
+          </g>
+
+          <!-- 8-bit Internal Data Bus (Cyan) -->
+          <path id="svg-path-data-main" d="M 70 175 L 755 175" class="svg-bus bus-data" />
+          <path id="svg-path-data-ext" d="M 755 175 L 812 175" class="svg-bus bus-data" />
+          <g id="badge-data-bus">
+            <rect x="445" y="190" width="160" height="22" rx="4" fill="#060c18" stroke="rgba(0, 229, 255, 0.55)" stroke-width="1.2" />
+            <text x="525" y="201" dominant-baseline="middle" class="svg-bus-label bus-data-label" text-anchor="middle">8-BIT DATA BUS (D7 - D0)</text>
+          </g>
+
+          <!-- Tap lines from Internal Data Bus to CPU units -->
+          <line x1="120" y1="175" x2="120" y2="125" class="svg-bus-tap tap-data" />
+          <line x1="260" y1="175" x2="260" y2="125" class="svg-bus-tap tap-data" />
+          <line x1="397" y1="175" x2="397" y2="125" class="svg-bus-tap tap-data" />
+          <line x1="540" y1="175" x2="540" y2="125" class="svg-bus-tap tap-data" />
+          <line x1="687" y1="175" x2="687" y2="125" class="svg-bus-tap tap-data" />
+          <line x1="325" y1="365" x2="325" y2="175" class="svg-bus-tap tap-alu-out" />
+
+          <!-- Control Bus Lines (Purple) -->
+          <path d="M 120 330 L 120 455 L 812 455" class="svg-bus bus-ctrl" />
+          <g id="badge-ctrl-bus">
+            <rect x="425" y="460" width="190" height="22" rx="4" fill="#060c18" stroke="rgba(168, 85, 247, 0.55)" stroke-width="1.2" />
+            <text x="520" y="471" dominant-baseline="middle" class="svg-bus-label bus-ctrl-label" text-anchor="middle">CONTROL BUS (RD, WR, IO/M)</text>
+          </g>
+
+          <!-- BLOCKS -->
+          <!-- 1. Instruction Register & Decoder -->
+          <g id="node-ir" class="svg-block">
+            <title>Current Order (IR): The instruction the CPU is reading right now</title>
+            <rect x="55" y="55" width="130" height="70" rx="8" class="svg-block-rect" />
+            <text x="120" y="74" class="svg-block-header">CURRENT ORDER (IR)</text>
+            <text id="svg-ir-val" x="120" y="97" class="svg-block-val">00H</text>
+            <text id="svg-ir-text" x="120" y="114" class="svg-block-sub">OPCODE DECODER</text>
+          </g>
+
+          <!-- 2. Timing & Control Unit -->
+          <g id="node-ctrl" class="svg-block">
+            <title>Traffic Controller: Tells every part of the CPU when to move</title>
+            <rect x="55" y="215" width="130" height="115" rx="8" class="svg-block-rect" />
+            <text x="120" y="235" class="svg-block-header">TRAFFIC CONTROLLER</text>
+            <text id="svg-ctrl-phase" x="120" y="260" class="svg-phase-pill">FETCH</text>
+            <text id="svg-ctrl-tstates" x="120" y="285" class="svg-block-sub">T-STATE: T1</text>
+            <g id="svg-ctrl-pins">
+              <text x="78" y="310" text-anchor="middle" class="svg-pin-label">RD:<tspan id="svg-pin-rd" class="pin-active">1</tspan></text>
+              <text x="120" y="310" text-anchor="middle" class="svg-pin-label">WR:<tspan id="svg-pin-wr">1</tspan></text>
+              <text x="162" y="310" text-anchor="middle" class="svg-pin-label">IO/M:<tspan id="svg-pin-iom">0</tspan></text>
+            </g>
+          </g>
+
+          <!-- 3. Accumulator (A) -->
+          <g id="node-acc" class="svg-block">
+            <title>Main Desk (Accumulator A): The primary work surface where results land</title>
+            <rect x="195" y="55" width="130" height="70" rx="8" class="svg-block-rect svg-acc-rect" />
+            <text x="260" y="74" class="svg-block-header">MAIN DESK (A)</text>
+            <text id="svg-acc-val" x="260" y="98" class="svg-block-val svg-acc-val">00H (0)</text>
+            <text id="svg-acc-bin" x="260" y="115" class="svg-block-bin">0000 0000</text>
+          </g>
+
+          <!-- 4. Temporary Register (TR) -->
+          <g id="node-temp" class="svg-block">
+            <title>Scratch Pad (TR): Holds the second number for the calculator</title>
+            <rect x="335" y="55" width="124" height="70" rx="8" class="svg-block-rect" />
+            <text x="397" y="74" class="svg-block-header">SCRATCH PAD (TR)</text>
+            <text id="svg-temp-val" x="397" y="98" class="svg-block-val">00H (0)</text>
+            <text id="svg-temp-sub" x="397" y="115" class="svg-block-sub">ALU OPERAND</text>
+          </g>
+
+          <!-- 5. Arithmetic Logic Unit (ALU) -->
+          <g id="node-alu" class="svg-block">
+            <title>Calculator (ALU): The electronic brain where addition and logic happen</title>
+            <!-- V-shaped polygon ALU -->
+            <polygon points="215,225 435,225 365,345 285,345" class="svg-alu-poly" />
+            <text x="325" y="248" class="svg-alu-title">CALCULATOR (ALU)</text>
+            <!-- Inputs from A and TR -->
+            <path d="M 260 125 L 260 225" class="svg-alu-in-line" marker-end="url(#arrow-cyan)" />
+            <path d="M 397 125 L 397 225" class="svg-alu-in-line" marker-end="url(#arrow-cyan)" />
+            <!-- Operation Display Badge -->
+            <rect x="290" y="260" width="70" height="34" rx="6" class="svg-alu-op-box" />
+            <text id="svg-alu-op" x="325" y="284" class="svg-alu-op-text">+</text>
+            <text id="svg-alu-calc" x="325" y="320" class="svg-alu-calc-text">00H + 00H = 00H</text>
+          </g>
+
+          <!-- 6. Flags Register (PSW) -->
+          <g id="node-flags" class="svg-block">
+            <title>5 Signal Lights (Flags): Light up on carry, zero, sign, or parity</title>
+            <rect x="215" y="365" width="220" height="65" rx="8" class="svg-block-rect" />
+            <text x="325" y="383" class="svg-block-header">5 SIGNAL LIGHTS (FLAGS)</text>
+            <g transform="translate(225, 392)">
+              <!-- S LED -->
+              <circle id="svg-led-s" cx="18" cy="12" r="7.5" class="svg-led" />
+              <text x="18" y="30" class="svg-led-lbl">S</text>
+              <!-- Z LED -->
+              <circle id="svg-led-z" cx="58" cy="12" r="7.5" class="svg-led" />
+              <text x="58" y="30" class="svg-led-lbl">Z</text>
+              <!-- AC LED -->
+              <circle id="svg-led-ac" cx="98" cy="12" r="7.5" class="svg-led" />
+              <text x="98" y="30" class="svg-led-lbl">AC</text>
+              <!-- P LED -->
+              <circle id="svg-led-p" cx="138" cy="12" r="7.5" class="svg-led" />
+              <text x="138" y="30" class="svg-led-lbl">P</text>
+              <!-- CY LED -->
+              <circle id="svg-led-cy" cx="178" cy="12" r="7.5" class="svg-led" />
+              <text x="178" y="30" class="svg-led-lbl">CY</text>
+            </g>
+          </g>
+
+          <!-- 7. General Purpose Register Array (B, C, D, E, H, L) -->
+          <g id="node-regs" class="svg-block">
+            <title>Helper Desks: Extra desks holding numbers while Main Desk A works</title>
+            <rect x="468" y="45" width="144" height="110" rx="8" class="svg-block-rect" />
+            <text x="540" y="62" class="svg-block-header">HELPER DESKS (B-L)</text>
+            <g transform="translate(477, 70)">
+              <rect x="0" y="0" width="58" height="24" rx="4" class="svg-mini-cell" />
+              <text x="29" y="16" class="svg-mini-val">B:<tspan id="svg-val-b">00H</tspan></text>
+              <rect x="68" y="0" width="58" height="24" rx="4" class="svg-mini-cell" />
+              <text x="97" y="16" class="svg-mini-val">C:<tspan id="svg-val-c">00H</tspan></text>
+
+              <rect x="0" y="28" width="58" height="24" rx="4" class="svg-mini-cell" />
+              <text x="29" y="44" class="svg-mini-val">D:<tspan id="svg-val-d">00H</tspan></text>
+              <rect x="68" y="28" width="58" height="24" rx="4" class="svg-mini-cell" />
+              <text x="97" y="44" class="svg-mini-val">E:<tspan id="svg-val-e">00H</tspan></text>
+
+              <rect x="0" y="56" width="58" height="24" rx="4" class="svg-mini-cell svg-cell-hl" />
+              <text x="29" y="72" class="svg-mini-val">H:<tspan id="svg-val-h">00H</tspan></text>
+              <rect x="68" y="56" width="58" height="24" rx="4" class="svg-mini-cell svg-cell-hl" />
+              <text x="97" y="72" class="svg-mini-val">L:<tspan id="svg-val-l">00H</tspan></text>
+            </g>
+          </g>
+
+          <!-- 8. Special Pointer Registers (SP & PC) -->
+          <g id="node-ptrs" class="svg-block">
+            <title>Bookmarks & Stack: Keeps place in the recipe and subroutine memory</title>
+            <rect x="620" y="45" width="134" height="110" rx="8" class="svg-block-rect" />
+            <text x="687" y="62" class="svg-block-header">BOOKMARKS & STACK</text>
+            <g transform="translate(627, 70)">
+              <rect x="0" y="0" width="120" height="34" rx="4" class="svg-ptr-cell" />
+              <text x="60" y="14" class="svg-ptr-name">STACK POINTER (SP)</text>
+              <text id="svg-val-sp" x="60" y="28" class="svg-ptr-val">FFFFH</text>
+
+              <rect x="0" y="38" width="120" height="34" rx="4" class="svg-ptr-cell svg-cell-pc" />
+              <text x="60" y="52" class="svg-ptr-name">PROGRAM COUNTER (PC)</text>
+              <text id="svg-val-pc" x="60" y="66" class="svg-ptr-val svg-pc-val">2000H</text>
+            </g>
+          </g>
+
+          <!-- 9. External 64KB RAM Memory Unit -->
+          <g id="node-mem" class="svg-block">
+            <title>Storage Shelf (RAM): 65,536 numbered boxes storing data</title>
+            <rect x="812" y="45" width="138" height="430" rx="10" class="svg-mem-rect" />
+            <text x="881" y="67" class="svg-mem-header">STORAGE SHELF (RAM)</text>
+            <text x="881" y="82" class="svg-mem-sub">64KB MEMORY</text>
+            <text x="881" y="95" class="svg-mem-sub">0000H — FFFFH</text>
+
+            <rect x="823" y="108" width="116" height="70" rx="6" class="svg-mem-box" />
+            <text x="881" y="128" class="svg-mem-lbl">BOX NUMBER</text>
+            <text id="svg-mem-addr" x="881" y="154" class="svg-mem-addr-val">2050H</text>
+
+            <rect x="823" y="194" width="116" height="85" rx="6" class="svg-mem-box" />
+            <text x="881" y="215" class="svg-mem-lbl">NUMBER IN BOX</text>
+            <text id="svg-mem-val" x="881" y="244" class="svg-mem-byte-val">00H</text>
+            <text id="svg-mem-dec" x="881" y="265" class="svg-mem-dec-val">(0)</text>
+
+            <!-- Memory Direction Arrow (Read from RAM vs Write to RAM) -->
+            <g id="svg-mem-dir-wrap" transform="translate(851, 305)">
+              <rect x="0" y="0" width="60" height="28" rx="4" class="svg-dir-pill" />
+              <text id="svg-mem-dir-text" x="30" y="18" class="svg-dir-text">READ</text>
+            </g>
+          </g>
+
+          <!-- ANIMATED DATA PACKETS (Gliding on buses) -->
+          <g id="svg-packet-layer">
+            <!-- Animated Address Packet (Gold) -->
+            <g id="svg-packet-addr" opacity="0">
+              <circle cx="0" cy="0" r="14" fill="#f59e0b" filter="url(#glow-gold)" />
+              <text id="svg-packet-addr-text" x="0" y="4" text-anchor="middle" font-size="9" font-weight="700" fill="#000">2000</text>
+            </g>
+            <!-- Animated Data Packet (Cyan) -->
+            <g id="svg-packet-data" opacity="0">
+              <circle cx="0" cy="0" r="14" fill="#00e5ff" filter="url(#glow-cyan)" />
+              <text id="svg-packet-data-text" x="0" y="4" text-anchor="middle" font-size="9" font-weight="700" fill="#000">05H</text>
+            </g>
+          </g>
+        </svg>
+
+        <!-- Floating Live Component Callout Overlay -->
+        <div id="floating-callout" class="floating-callout">
+          <span id="callout-bubble-text">👉 Ready: Click "▶ Start Simulation" to begin!</span>
+        </div>
+      </div>
+
+      <!-- Detailed Mathematical Calculation Stage (Directly Under Architecture Visualizer) -->
+      <div id="v-chalk-math-card" class="chalk-math-card">
+        <div class="math-card-header-row">
+          <div class="math-card-title">ALU MATHEMATICAL CALCULATION (PHYSICAL BLOCK VIEW)</div>
+          <!-- 5-Flag Status Pills -->
+          <div class="calc-flags-row">
+            <span class="calc-flags-label">FLAGS:</span>
+            <span class="cflag-pill" id="cflag-s" title="Sign Flag (1 if negative / MSB=1)">S: 0</span>
+            <span class="cflag-pill" id="cflag-z" title="Zero Flag (1 if result is zero)">Z: 0</span>
+            <span class="cflag-pill" id="cflag-ac" title="Auxiliary Carry Flag (BCD half-carry)">AC: 0</span>
+            <span class="cflag-pill" id="cflag-p" title="Parity Flag (1 if even parity)">P: 0</span>
+            <span class="cflag-pill" id="cflag-cy" title="Carry Flag (1 if carry/borrow occurred)">CY: 0</span>
+          </div>
+        </div>
+
+        <!-- Physical visual colorful blocks with dot counters for non-IT users! -->
+        <div id="physical-math-blocks" class="physical-math-blocks">
+          <div class="math-block block-operand1">
+            <span class="block-label" id="math-block-lbl1">Desk A</span>
+            <span class="block-val" id="math-block-val1">0</span>
+            <div class="block-dots" id="math-block-dots1"></div>
+          </div>
+          <div class="math-operator" id="math-block-op">+</div>
+          <div class="math-block block-operand2">
+            <span class="block-label" id="math-block-lbl2">Pocket B</span>
+            <span class="block-val" id="math-block-val2">0</span>
+            <div class="block-dots" id="math-block-dots2"></div>
+          </div>
+          <div class="math-operator">=</div>
+          <div class="math-block block-result">
+            <span class="block-label">Final Answer</span>
+            <span class="block-val" id="math-block-val-res">0</span>
+            <div class="block-dots" id="math-block-dots-res"></div>
+          </div>
+        </div>
+
+        <div id="v-math-equation" class="math-equation">No calculation in this step.</div>
+        <div id="v-math-decimal" class="math-decimal"></div>
+        <div id="v-math-binary" class="math-binary"></div>
+        <div id="v-math-flags-explain" class="math-flags-explain"></div>
+      </div>
+
+        </div>
+
+        <!-- Right Side: Storyboard & Execution Context Deck (Visible simultaneously) -->
+        <div class="viz-deck-col">
+      <!-- Architecture Focus / Spotlight Toolbar -->
+      <div class="component-spotlight-bar">
+        <span class="spotlight-label">🔦 Component Focus:</span>
+        <button class="btn btn-spotlight" data-spotlight="alu">⚡ Focus ALU & Flags</button>
+        <button class="btn btn-spotlight" data-spotlight="bus">🚏 Focus System Buses</button>
+        <button class="btn btn-spotlight" data-spotlight="regs">📦 Focus Registers</button>
+        <button class="btn btn-spotlight" data-spotlight="mem">💾 Focus RAM Memory</button>
+        <button class="btn btn-spotlight active" data-spotlight="clear">👁️ Full View</button>
+      </div>
+
+      <!-- Story Beginning Intro Card (Shown before program runs) -->
+      <div id="prog-intro-card" class="prog-intro-card" style="display: none;">
+        <div class="intro-card-inner">
+          <div class="intro-icon">🎬</div>
+          <div class="intro-body">
+            <div class="intro-badge">STORY PREVIEW</div>
+            <div id="intro-title" class="intro-title">We are going to add 5 and 3</div>
+            <div id="intro-desc" class="intro-desc">Watch the CPU take 5 from box 2050H, take 3 from box 2051H, add them in the Calculator, and store the answer 8 in box 2052H.</div>
+            <div class="intro-actions">
+              <span id="intro-steps" class="intro-steps-badge">10 scenes in this story</span>
+              <button id="btn-intro-start" class="btn btn-primary btn-sm">▶ Start Watching Story</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Non-IT Storyboard Banner (Everyday English & Analogies) -->
+      <div id="live-storyboard" class="storyboard-card">
+        <div class="storyboard-top">
+          <div class="story-tag-wrap">
+            <span class="story-badge">📖 LIVE CPU STORYBOARD</span>
+            <span id="story-mode-pill" class="story-mode-pill">👶 Plain English Mode: ON</span>
+          </div>
+          <div class="story-controls">
+            <button id="btn-toggle-eli5" class="btn btn-secondary btn-sm" title="Toggle between Everyday English analogies and Technical Hex/Assembly">
+              🔁 Toggle Technical View
+            </button>
+            <button id="btn-story-next" class="btn btn-primary btn-sm" title="Advance to the next step">
+              Continue to Next Step ❯
+            </button>
+          </div>
+        </div>
+
+        <div class="storyboard-content">
+          <div class="story-icon" id="story-icon">🤖</div>
+          <div class="story-text-wrap">
+            <div id="story-headline" class="story-headline">Ready: Click "▶ Start Simulation" or "Next" to watch the CPU execute</div>
+            <!-- Structured 3-Line Plain English Format -->
+            <div id="story-3lines" class="story-3lines" style="display: none;">
+              <div class="story-line-item line-happened">
+                <span class="story-line-lbl">👉 WHAT HAPPENED:</span>
+                <span id="story-happened" class="story-line-val">—</span>
+              </div>
+              <div class="story-line-item line-answer">
+                <span class="story-line-lbl">📍 WHERE IS ANSWER:</span>
+                <span id="story-answer" class="story-line-val">—</span>
+              </div>
+              <div class="story-line-item line-changed">
+                <span class="story-line-lbl">✨ WHAT CHANGED:</span>
+                <span id="story-changed" class="story-line-val">—</span>
+              </div>
+            </div>
+            <div id="story-detail" class="story-detail">
+              The CPU is like a smart robot chef with a Working Desk, Pockets for numbers, and a Pocket Calculator. It follows a recipe one step at a time.
+            </div>
+            <div id="story-analogy" class="story-analogy">
+              💡 <strong>Everyday Analogy:</strong> Lockers (RAM) store raw ingredients. Working Desk (Accumulator) holds what the CPU is holding. The Calculator (ALU) does the math!
+            </div>
+            <div id="story-branch-decision" class="story-branch-decision" style="display: none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Halt Summary & Check Question Card (Shown when program finishes) -->
+      <div id="halt-summary-card" class="halt-summary-card" style="display: none;">
+        <div class="halt-summary-header">
+          <span class="halt-summary-icon">🎉</span>
+          <span id="halt-headline" class="halt-headline">Done — the answer is 8 (08H). It is stored at 2052H. Carry 0 is stored at 2053H.</span>
+        </div>
+        <div id="halt-note" class="halt-note">Note: Accumulator A shows 00H because A holds the carry (00H), not the sum (the sum was stored into memory at 2052H).</div>
+        <div id="halt-quiz-wrap" class="halt-quiz-wrap">
+          <div class="quiz-question">Quick check: <strong>Where is the answer?</strong></div>
+          <div class="quiz-buttons">
+            <button type="button" class="btn-quiz" id="btn-quiz-1" data-opt="1">In Register A</button>
+            <button type="button" class="btn-quiz" id="btn-quiz-2" data-opt="2">In Memory at 2052H</button>
+            <button type="button" class="btn-quiz" id="btn-quiz-3" data-opt="3">In the ALU</button>
+          </div>
+          <div id="quiz-feedback" class="quiz-feedback" style="display: none;"></div>
+        </div>
+      </div>
+
+        <!-- Left Column: Live Chalkboard & Step Explanation Stage -->
+        <div class="panel board-panel">
+          <div class="panel-header chalkboard-head">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="chalk-icon">📋</span>
+              <h2>Execution Chalkboard & Step Breakdown</h2>
+            </div>
+            <!-- Micro-Cycle Phase Tracker Pills -->
+            <div class="phase-steps-wrap">
+              <span id="phase-fetch" class="phase-pill active">1. FETCH</span>
+              <span id="phase-decode" class="phase-pill">2. DECODE</span>
+              <span id="phase-execute" class="phase-pill">3. EXECUTE</span>
+              <span id="phase-writeback" class="phase-pill">4. WRITEBACK</span>
+            </div>
+          </div>
+
+          <div class="panel-body chalkboard-body">
+            <!-- Step Title & Plain English Narration -->
+            <div class="chalk-step-box">
+              <div id="v-chalk-title" class="chalk-step-title">Step 0: Ready — Select a Program or Press Start Simulation</div>
+              <div id="v-chalk-narration" class="chalk-step-narration">
+                Welcome to the 8085 Visualizer! Click <strong>Start Simulation</strong> to watch how the CPU fetches bytes from memory, decodes machine instructions, and runs calculations in the ALU step-by-step.
+              </div>
+            </div>
+
+            <!-- Trace Step History Table -->
+            <div class="chalk-trace-wrap">
+              <div class="trace-header-row">
+                <span>Execution Trace History (Click any step to jump):</span>
+              </div>
+              <div class="table-container" style="max-height: 180px;">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 45px;">Step</th>
+                      <th style="width: 70px;">PC</th>
+                      <th>Instruction</th>
+                      <th>What Changed</th>
+                      <th style="width: 60px;">T-States</th>
+                    </tr>
+                  </thead>
+                  <tbody id="v-trace-body">
+                    <tr><td colspan="5" style="text-align:center; color: var(--text-muted); padding: 14px;">No steps yet. Press Start Simulation or Next.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Interactive Toolkit & Programs Deck -->
+        <div class="toolkit-column">
+          <!-- 1. Interactive Math Calculator (Zero Assembly Required) -->
+          <div class="panel toolkit-panel">
+            <div class="panel-header">
+              <h2>🧮 Quick Math Calculator (Try Any Numbers)</h2>
+            </div>
+            <div class="panel-body" style="padding: 16px;">
+              <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+                New to assembly? Just enter two numbers below. The platform will automatically write 8085 code and run the interactive simulation!
+              </p>
+              <div class="calc-inputs-row">
+                <div class="calc-field">
+                  <label for="custom-num1">Number 1 (Hex / Dec):</label>
+                  <input type="text" id="custom-num1" value="05H" maxlength="4" style="text-transform: uppercase;">
+                </div>
+                <div class="calc-field">
+                  <label for="custom-op">Operator:</label>
+                  <select id="custom-op">
+                    <option value="ADD">+ Addition</option>
+                    <option value="SUB">- Subtraction</option>
+                    <option value="MULT">× Multiplication</option>
+                    <option value="CMP">🔍 Compare</option>
+                  </select>
+                </div>
+                <div class="calc-field">
+                  <label for="custom-num2">Number 2 (Hex / Dec):</label>
+                  <input type="text" id="custom-num2" value="03H" maxlength="4" style="text-transform: uppercase;">
+                </div>
+              </div>
+              <div id="calc-prediction" class="calc-prediction" style="margin-top: 10px; font-size: 11.5px; color: var(--accent-cyan); background: rgba(56, 189, 248, 0.08); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.2);">
+                💡 <strong>Predicted Story:</strong> 5 + 3 = 8 (08H). Press below to watch the CPU do it!
+              </div>
+              <button id="btn-custom-calc" class="btn btn-primary" style="width: 100%; margin-top: 12px;">
+                ▶ Watch CPU Calculate This!
+              </button>
+            </div>
+          </div>
+
+          <!-- 2. Featured Programs Deck -->
+          <div class="panel toolkit-panel">
+            <div class="panel-header">
+              <h2>📚 Featured Programs & Calculations</h2>
+            </div>
+            <div class="panel-body" style="padding: 12px;">
+              <div class="lesson-list">
+                <button class="lesson-btn active" data-lesson="1">
+                  <strong>Program 1:</strong> 8-Bit Addition & The Accumulator
+                </button>
+                <button class="lesson-btn" data-lesson="2">
+                  <strong>Program 2:</strong> Carry Flag & 8-Bit Overflow (255+1)
+                </button>
+                <button class="lesson-btn" data-lesson="3">
+                  <strong>Program 3:</strong> Subtraction & Borrow Flag (CY)
+                </button>
+                <button class="lesson-btn" data-lesson="4">
+                  <strong>Program 4:</strong> The 3-Step Fetch-Decode-Execute Cycle
+                </button>
+                <button class="lesson-btn" data-lesson="5">
+                  <strong>Program 5:</strong> Memory Pointer & The HL Register Pair
+                </button>
+                <button class="lesson-btn" data-lesson="6">
+                  <strong>Program 6:</strong> Loops & Multiplication Algorithm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      <!-- Beginner Component Quick-Guide (Click any part on the diagram to see what it is) -->
+      <div id="component-explainer-bar" class="component-explainer-bar">
+        <div class="explainer-header">
+          <span class="explainer-tag">💡 COMPONENT EXPLAINER (CLICK ANY PART ABOVE TO LEARN)</span>
+          <span id="explainer-active-name" class="explainer-active-name">Working Desk (Accumulator A)</span>
+        </div>
+        <div id="explainer-active-desc" class="explainer-desc">
+          <strong>The Working Desk (Accumulator A):</strong> The CPU's primary workspace. When adding two numbers, the CPU holds the first number in its hand here, sends it to the calculator, and receives the answer back.
+        </div>
+      </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Pane 1: Studio (Editor & Assembly Listing) -->
+    <div id="pane-studio" class="tab-pane">
+      <div class="studio-grid">
+        <!-- Left: Code Editor -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+              8085 Assembly Editor (Source Code)
+            </h2>
+            <span style="font-size: 11px; color: var(--text-muted);">Case-insensitive | Semicolon for comments</span>
+          </div>
+          <div class="panel-body">
+            <div class="editor-container">
+              <div id="line-numbers" class="line-numbers">1</div>
+              <div class="editor-code-wrapper">
+                <pre id="code-highlight" class="code-highlight" aria-hidden="true"></pre>
+                <textarea id="code-editor" class="code-textarea" spellcheck="false" placeholder="Enter 8085 Assembly Code here..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Assembly Machine Code Listing -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+              Assembled Listing & Machine Code
+            </h2>
+            <div class="stats-ribbon" style="padding: 0; background: transparent; border: none;">
+              <div class="stat-item">Bytes: <span id="stat-bytes" class="stat-badge">0</span></div>
+              <div class="stat-item">Errors: <span id="stat-errors" class="stat-badge success">0</span></div>
+              <div class="stat-item">Origin: <span id="stat-origin" class="stat-badge">--</span></div>
+            </div>
+          </div>
+          <div class="panel-body table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width: 45px;">Line</th>
+                  <th style="width: 70px;">Addr</th>
+                  <th style="width: 110px;">Machine Code</th>
+                  <th style="width: 80px;">Label</th>
+                  <th>Instruction</th>
+                  <th style="width: 65px;">T-States</th>
+                  <th style="width: 45px;">Size</th>
+                </tr>
+              </thead>
+              <tbody id="assembly-table-body">
+                <tr>
+                  <td colspan="7" style="text-align: center; padding: 50px 20px; color: var(--text-muted);">
+                    <div style="font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--text-secondary);">No Machine Code Generated Yet</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Click <strong style="color: var(--accent-cyan);">Assemble (Pass 1 & 2)</strong> to generate machine code and listing.</div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pane 2: CPU Simulator & Memory Inspector -->
+    <div id="pane-sim" class="tab-pane">
+      <div class="simulator-layout">
+        <!-- Left: CPU Registers and Flags -->
+        <div class="cpu-card">
+          <div class="cpu-title">
+            <span>Intel 8085 CPU Core</span>
+            <span id="sim-status" style="font-size: 11px; font-weight: 700; color: var(--accent-green);">READY</span>
+          </div>
+
+          <!-- Registers A, B, C, D, E, H, L -->
+          <div class="registers-grid">
+            <div class="reg-box highlight">
+              <div>
+                <div class="reg-name">ACCUMULATOR (A)</div>
+                <div id="reg-a" class="reg-val">00H</div>
+              </div>
+              <div id="reg-a-dec" class="reg-dec">0</div>
+            </div>
+
+            <div class="reg-box">
+              <div>
+                <div class="reg-name">REG B</div>
+                <div id="reg-b" class="reg-val">00H</div>
+              </div>
+              <div id="reg-b-dec" class="reg-dec">0</div>
+            </div>
+
+            <div class="reg-box">
+              <div>
+                <div class="reg-name">REG C</div>
+                <div id="reg-c" class="reg-val">00H</div>
+              </div>
+              <div id="reg-c-dec" class="reg-dec">0</div>
+            </div>
+
+            <div class="reg-box">
+              <div>
+                <div class="reg-name">REG D</div>
+                <div id="reg-d" class="reg-val">00H</div>
+              </div>
+              <div id="reg-d-dec" class="reg-dec">0</div>
+            </div>
+
+            <div class="reg-box">
+              <div>
+                <div class="reg-name">REG E</div>
+                <div id="reg-e" class="reg-val">00H</div>
+              </div>
+              <div id="reg-e-dec" class="reg-dec">0</div>
+            </div>
+
+            <div class="reg-box">
+              <div>
+                <div class="reg-name">REG H</div>
+                <div id="reg-h" class="reg-val">00H</div>
+              </div>
+              <div id="reg-h-dec" class="reg-dec">0</div>
+            </div>
+
+            <div class="reg-box">
+              <div>
+                <div class="reg-name">REG L</div>
+                <div id="reg-l" class="reg-val">00H</div>
+              </div>
+              <div id="reg-l-dec" class="reg-dec">0</div>
+            </div>
+
+            <div class="reg-box">
+              <div>
+                <div class="reg-name">MEMORY [HL]</div>
+                <div id="reg-m" class="reg-val">00H</div>
+              </div>
+              <div id="reg-m-dec" class="reg-dec">0</div>
+            </div>
+          </div>
+
+          <!-- 16-Bit Pointers: PC and SP -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div class="reg-box highlight">
+              <div>
+                <div class="reg-name">PROGRAM COUNTER</div>
+                <div id="reg-pc" class="reg-val" style="color: var(--accent-amber);">2000H</div>
+              </div>
+            </div>
+            <div class="reg-box">
+              <div>
+                <div class="reg-name">STACK POINTER</div>
+                <div id="reg-sp" class="reg-val">FFFFH</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Flags Register (F) -->
+          <div>
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase;">
+              Flags Register (PSW)
+            </div>
+            <div class="flags-container">
+              <div class="flag-item">
+                <span class="flag-label">S</span>
+                <div id="flag-s" class="flag-led" title="Sign Flag (1 if MSB is 1)"></div>
+              </div>
+              <div class="flag-item">
+                <span class="flag-label">Z</span>
+                <div id="flag-z" class="flag-led" title="Zero Flag (1 if ALU result is 0)"></div>
+              </div>
+              <div class="flag-item">
+                <span class="flag-label">AC</span>
+                <div id="flag-ac" class="flag-led" title="Auxiliary Carry (Carry from bit 3 to 4)"></div>
+              </div>
+              <div class="flag-item">
+                <span class="flag-label">P</span>
+                <div id="flag-p" class="flag-led" title="Parity Flag (1 for even parity)"></div>
+              </div>
+              <div class="flag-item">
+                <span class="flag-label">CY</span>
+                <div id="flag-cy" class="flag-led" title="Carry Flag (Carry out of bit 7)"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Total Execution Cycles -->
+          <div class="reg-box" style="justify-content: space-around;">
+            <div style="text-align: center;">
+              <div class="reg-name">T-STATES (CYCLES)</div>
+              <div id="sim-cycles" class="reg-val" style="color: var(--accent-green);">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Memory Inspector & Interactive Editor -->
+        <div class="memory-viewer">
+          <div class="memory-header">
+            <h2 style="font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--text-secondary);">
+              64KB Memory Grid & Data Inspector
+            </h2>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span style="font-size: 11px; color: var(--text-secondary);">Go to Address:</span>
+              <input type="text" id="mem-goto-addr" value="2050H" style="width: 80px; text-transform: uppercase; font-family: var(--code-font);">
+              <span style="font-size: 11px; color: var(--accent-cyan);">(Click any cell to edit byte)</span>
+            </div>
+          </div>
+          <div class="memory-table-wrap">
+            <table class="memory-table">
+              <thead>
+                <tr>
+                  <th style="width: 70px;">Addr</th>
+                  <th>+0</th><th>+1</th><th>+2</th><th>+3</th>
+                  <th>+4</th><th>+5</th><th>+6</th><th>+7</th>
+                  <th>+8</th><th>+9</th><th>+A</th><th>+B</th>
+                  <th>+C</th><th>+D</th><th>+E</th><th>+F</th>
+                </tr>
+              </thead>
+              <tbody id="memory-grid-body">
+                <!-- Dynamically populated 16 rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visualizer: Trace / History — click any row to jump to that step -->
+      <div class="panel viz-trace-panel">
+        <div class="panel-header">
+          <h2>Visualizer Trace — Step History (click a row to go back)</h2>
+          <span style="font-size: 11px; color: var(--text-secondary);">Every step reflects real 8085 CPU and register state in real-time. Replay re-runs the same steps.</span>
+        </div>
+        <div class="panel-body table-container" style="max-height: 260px;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 50px;">Step</th>
+                <th style="width: 80px;">PC</th>
+                <th>Instruction</th>
+                <th>What Changed</th>
+                <th style="width: 70px;">T-States</th>
+              </tr>
+            </thead>
+            <tbody id="viz-trace-body">
+              <tr><td colspan="5" style="text-align:center; color: var(--text-muted); padding: 16px;">No steps yet. Press Step or Play.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pane 3: Symbol Table & HEX Export -->
+    <div id="pane-export" class="tab-pane">
+      <div class="studio-grid">
+        <!-- Symbol Table Panel -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Symbol Table (Pass 1 Output)</h2>
+            <span style="font-size: 11px; color: var(--text-secondary);">Resolved Label Addresses</span>
+          </div>
+          <div class="panel-body table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Symbol Name</th>
+                  <th>Hex Address</th>
+                  <th>Decimal</th>
+                  <th>Line Defined</th>
+                </tr>
+              </thead>
+              <tbody id="symbol-table-body">
+                <tr>
+                  <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                    No symbols generated yet. Click Assemble.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Intel HEX View & Downloads Panel -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Intel HEX Machine-Code Output</h2>
+            <div style="display: flex; gap: 6px;">
+              <button id="btn-copy-hex" class="btn btn-secondary" style="padding: 4px 8px;">Copy HEX</button>
+              <button id="btn-download-hex" class="btn btn-primary" style="padding: 4px 8px;">Download .HEX</button>
+              <button id="btn-download-lst" class="btn btn-secondary" style="padding: 4px 8px;">Download .LST</button>
+            </div>
+          </div>
+          <div class="panel-body" style="padding: 12px; background: #080d14;">
+            <pre id="hex-output" style="font-family: var(--code-font); font-size: 12px; color: var(--accent-cyan); line-height: 1.6;">// Machine code will appear here after clicking Assemble.</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    8085 Microprocessor Studio | Two-Pass Assembler & Interactive Simulator | C11 & Modern Web Tech
+  </footer>
+
+  <script src="app.js?v=2"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+build/
+*.o
+*.obj
+*.exe
+*.pdb
+.DS_Store
+__pycache__/
+*.pyc
+
+# Local secrets & environment files
+voice-agent-api.env
+*.env
