@@ -841,6 +841,464 @@ let autoPauseEachStep = false;
 let vizTimer = null;
 let vizInitialSnapshot = null; // CPU state before step 1, for Replay / Step Back to start
 
+/* ============================================================================
+   AI TEACHER VOICE NARRATOR (Browser speechSynthesis ONLY)
+   ============================================================================ */
+let voiceEnabled = true; // Default ON on first visit
+let voiceSpeedIndex = 1; // 0: 0.8x (Slow), 1: 0.95x (Normal), 2: 1.15x (Fast)
+const VOICE_RATES = [0.8, 0.95, 1.15];
+const VOICE_LABELS = ['Slow (0.8x)', 'Normal (0.95x)', 'Fast (1.15x)'];
+let currentVoiceRate = 0.95;
+let availableVoices = [];
+let selectedVoice = null;
+let isSpeakingStep = false;
+let lastSpokenText = '';
+
+const ADDITION_STORY_SENTENCES = [
+  "We start with an empty carry box. C holds zero.",
+  "Take 5 from box 2050H on the shelf and put it on the main desk, A.",
+  "Copy 5 to the helper desk, B, so we don't lose it.",
+  "Take 3 from box 2051H and put it on the main desk, A.",
+  "The calculator adds them: 3 plus 5 equals 8.",
+  "Carry is zero, so we jump to NOCARRY. Nothing spilled over.",
+  "Put the answer, 8, into box 2052H, so it is saved.",
+  "A now holds the carry, which is zero. The answer is safe in box 2052H.",
+  "Put the carry, zero, into box 2053H.",
+  "Stop. The story is finished. The answer is 8."
+];
+const ADDITION_HALT_SENTENCE = "Done! The answer is 8. It is in box 2052H. The carry is zero, so nothing spilled over.";
+
+function numberToWord(n) {
+  const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
+                 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
+  if (n >= 0 && n < words.length) return words[n];
+  return String(n);
+}
+
+function formatSpeechText(text) {
+  if (!text) return '';
+  let s = String(text);
+
+  // Substitute register names with plain teacher terms:
+  s = s.replace(/\bRegister\s+A\b/gi, 'the main desk, A');
+  s = s.replace(/\bregister\s+A\b/gi, 'the main desk, A');
+  s = s.replace(/\bRegister\s+B\b/gi, 'helper desk, B');
+  s = s.replace(/\bregister\s+B\b/gi, 'helper desk, B');
+  s = s.replace(/\bRegister\s+C\b/gi, 'carry box, C');
+  s = s.replace(/\bregister\s+C\b/gi, 'carry box, C');
+
+  // Human pauses and stress for addition/subtraction:
+  // "3 plus 5 equals 8." -> "three plus five equals... eight."
+  s = s.replace(/(\d+)\s+plus\s+(\d+)\s+equals\s+(\d+)/gi, (match, n1, n2, res) => {
+    return `${numberToWord(parseInt(n1, 10))} plus ${numberToWord(parseInt(n2, 10))} equals... ${numberToWord(parseInt(res, 10))}`;
+  });
+  s = s.replace(/(\d+)\s+minus\s+(\d+)\s+equals\s+(\d+)/gi, (match, n1, n2, res) => {
+    return `${numberToWord(parseInt(n1, 10))} minus ${numberToWord(parseInt(n2, 10))} equals... ${numberToWord(parseInt(res, 10))}`;
+  });
+
+  // Stress and pause before answer:
+  s = s.replace(/answer,\s*(\d+),/gi, (match, num) => {
+    return `answer, ${numberToWord(parseInt(num, 10))},`;
+  });
+  s = s.replace(/answer\s+is\s+(\d+)/gi, (match, num) => {
+    return `answer is... ${numberToWord(parseInt(num, 10))}`;
+  });
+
+  // Natural address pronunciation: "box 2050H" -> "box 2050 H"
+  s = s.replace(/box\s*([0-9A-Fa-f]{4})H/gi, 'box $1 H');
+
+  // Convert standalone small numbers (0 to 20) to spoken English words
+  s = s.replace(/\b([0-9]|1[0-9]|20)\b/g, (match) => {
+    return numberToWord(parseInt(match, 10));
+  });
+
+  return s;
+}
+
+function getStepTeacherSentence(step) {
+  if (!step) return '';
+  if (currentSampleKey === 'addition' && step.step >= 1 && step.step <= 10) {
+    return ADDITION_STORY_SENTENCES[step.step - 1];
+  }
+  const m = (step.mnemonic || '').toUpperCase();
+  const ops = step.operands || '';
+  const opParts = ops.split(',').map(s => s.trim());
+
+  if (m === 'MVI') {
+    const reg = opParts[0];
+    const val = vizParseHexToken(opParts[1]) ?? opParts[1];
+    if (reg === 'A') return `Take ${val} and put it on the main desk, A.`;
+    if (reg === 'C') return `We start with an empty carry box. C holds ${val}.`;
+    return `Put ${val} into helper desk, ${reg}.`;
+  }
+  if (m === 'LDA') {
+    const addr = opParts[0];
+    const val = step.after ? step.after.a : 0;
+    return `Take ${val} from box ${addr} on the shelf and put it on the main desk, A.`;
+  }
+  if (m === 'STA') {
+    const addr = opParts[0];
+    const val = step.before ? step.before.a : 0;
+    return `Put the answer, ${val}, into box ${addr}, so it is saved.`;
+  }
+  if (m === 'MOV') {
+    const dst = opParts[0];
+    const src = opParts[1];
+    const srcVal = (step.before && step.before[src.toLowerCase()] !== undefined) ? step.before[src.toLowerCase()] : 0;
+    const srcName = src === 'A' ? 'the main desk, A' : `helper desk, ${src}`;
+    const dstName = dst === 'A' ? 'the main desk, A' : `helper desk, ${dst}`;
+    return `Copy ${srcVal} to ${dstName}, so we don't lose it.`;
+  }
+  if (m === 'ADD' || m === 'ADI' || m === 'ADC') {
+    const a = step.alu;
+    const op1 = a ? a.op1 : (step.before ? step.before.a : 0);
+    const op2 = a ? a.op2 : 0;
+    const res = a ? a.result : (step.after ? step.after.a : 0);
+    return `The calculator adds them: ${op1} plus ${op2} equals ${res}.`;
+  }
+  if (m === 'SUB' || m === 'SUI' || m === 'SBB') {
+    const a = step.alu;
+    const op1 = a ? a.op1 : (step.before ? step.before.a : 0);
+    const op2 = a ? a.op2 : 0;
+    const res = a ? a.result : (step.after ? step.after.a : 0);
+    return `The calculator subtracts: ${op1} minus ${op2} equals ${res}.`;
+  }
+  if (m === 'JNC' || m === 'JC') {
+    const target = opParts[0];
+    const isJnc = m === 'JNC';
+    const cy = step.after ? step.after.flags.cy : 0;
+    if (isJnc) {
+      return cy === 0
+        ? `Carry is zero, so we jump to ${target}. Nothing spilled over.`
+        : `Carry is one, so we continue without jumping.`;
+    } else {
+      return cy === 1
+        ? `Carry is one, so we jump to ${target}.`
+        : `Carry is zero, so we continue without jumping.`;
+    }
+  }
+  if (m === 'JNZ' || m === 'JZ') {
+    const target = opParts[0];
+    const z = step.after ? step.after.flags.z : 0;
+    const isJnz = m === 'JNZ';
+    if (isJnz) {
+      return z === 0
+        ? `Counter is not zero, so we loop back to ${target}.`
+        : `Counter reached zero, so we finished the loop.`;
+    } else {
+      return z === 1
+        ? `Result is zero, so we jump to ${target}.`
+        : `Result is not zero, so we continue forward.`;
+    }
+  }
+  if (m === 'INR') {
+    const reg = opParts[0];
+    const val = step.after ? step.after[reg.toLowerCase()] : 0;
+    return `Add one to helper desk ${reg}, making it ${val}.`;
+  }
+  if (m === 'DCR') {
+    const reg = opParts[0];
+    const val = step.after ? step.after[reg.toLowerCase()] : 0;
+    return `Count down helper desk ${reg} by one, now ${val}.`;
+  }
+  if (m === 'HLT') {
+    const ans = (step.after && step.after.a !== undefined) ? step.after.a : 0;
+    return `Stop. The story is finished. The answer is ${ans}.`;
+  }
+  return step.narration || `${m} instruction executed.`;
+}
+
+async function getVoiceTeacherSentence(step) {
+  const fallback = getStepTeacherSentence(step);
+  // Mercury API hook (brain-only: uses ONLY real simulator values; fallbacks if off or no key)
+  const mercuryKey = (typeof window !== 'undefined' && window.MERCURY_API_KEY) || (typeof localStorage !== 'undefined' && localStorage.getItem('8085_mercury_api_key'));
+  const mercuryEndpoint = (typeof window !== 'undefined' && window.MERCURY_API_ENDPOINT) || (typeof localStorage !== 'undefined' && localStorage.getItem('8085_mercury_endpoint'));
+
+  if (!mercuryKey || !mercuryEndpoint) {
+    return fallback;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1200);
+    const res = await fetch(mercuryEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${mercuryKey}`
+      },
+      body: JSON.stringify({
+        step: step.step,
+        mnemonic: step.mnemonic,
+        a: step.after ? step.after.a : step.before?.a,
+        b: step.after ? step.after.b : step.before?.b,
+        c: step.after ? step.after.c : step.before?.c,
+        flags: step.after ? step.after.flags : {},
+        alu: step.alu,
+        fallbackSentence: fallback
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.sentence) return data.sentence;
+    }
+  } catch (e) {
+    // Mercury is offline or unreachable - fallback immediately to fixed sentence
+  }
+  return fallback;
+}
+
+function cancelSpeech() {
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (e) {}
+  }
+  isSpeakingStep = false;
+  updateVoiceStatus(false);
+}
+
+function speakText(rawText, onDone) {
+  if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    if (onDone) onDone();
+    return;
+  }
+
+  cancelSpeech();
+
+  const speechText = formatSpeechText(rawText);
+  if (!speechText) {
+    if (onDone) onDone();
+    return;
+  }
+
+  lastSpokenText = rawText;
+
+  try {
+    const utterance = new SpeechSynthesisUtterance(speechText);
+    utterance.rate = currentVoiceRate;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+    }
+
+    isSpeakingStep = true;
+    updateVoiceStatus(true);
+
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      isSpeakingStep = false;
+      updateVoiceStatus(false);
+      if (onDone) onDone();
+    };
+
+    utterance.onend = finish;
+    utterance.onerror = (e) => {
+      finish();
+    };
+
+    window.speechSynthesis.speak(utterance);
+  } catch (err) {
+    isSpeakingStep = false;
+    updateVoiceStatus(false);
+    if (onDone) onDone();
+  }
+}
+
+async function speakCurrentStep(onDone) {
+  if (!voiceEnabled) {
+    if (onDone) onDone();
+    return;
+  }
+  if (cpu.halted && vizIndex === vizTrace.length - 1) {
+    const step = vizTrace[vizIndex];
+    const sentence = await getVoiceTeacherSentence(step);
+    speakText(sentence, () => {
+      speakHaltSummary(onDone);
+    });
+    return;
+  }
+  if (vizIndex >= 0 && vizIndex < vizTrace.length) {
+    const step = vizTrace[vizIndex];
+    const sentence = await getVoiceTeacherSentence(step);
+    speakText(sentence, onDone);
+  } else {
+    if (onDone) onDone();
+  }
+}
+
+function speakHaltSummary(onDone) {
+  if (!voiceEnabled) {
+    if (onDone) onDone();
+    return;
+  }
+  let haltSentence = ADDITION_HALT_SENTENCE;
+  if (currentSampleKey !== 'addition') {
+    const ans = cpu.memory[0x2052] || cpu.a || 0;
+    haltSentence = `Done! The answer is ${ans}. The story is finished.`;
+  }
+  speakText(haltSentence, onDone);
+}
+
+function repeatCurrentStep() {
+  if (!voiceEnabled) {
+    showToast('Voice is currently OFF. Turn Voice ON to hear narration.');
+    return;
+  }
+  const haltCard = document.getElementById('halt-summary-card');
+  if (haltCard && haltCard.style.display !== 'none' && cpu.halted) {
+    speakHaltSummary();
+    return;
+  }
+  if (vizIndex >= 0 && vizIndex < vizTrace.length) {
+    speakCurrentStep();
+  } else if (lastSpokenText) {
+    speakText(lastSpokenText);
+  } else {
+    speakText("Ready: Click Start Simulation or Next to watch the CPU execute.");
+  }
+}
+
+function updateVoiceStatus(isSpeaking) {
+  const pill = document.getElementById('voice-status-indicator');
+  const storySpeaking = document.getElementById('story-voice-speaking-pill');
+  if (pill) {
+    if (isSpeaking) {
+      pill.textContent = '🗣️ Speaking...';
+      pill.classList.add('speaking');
+    } else {
+      pill.textContent = voiceEnabled ? '🗣️ Ready' : '🔇 Muted';
+      pill.classList.remove('speaking');
+    }
+  }
+  if (storySpeaking) {
+    storySpeaking.style.display = (isSpeaking && voiceEnabled) ? 'inline-block' : 'none';
+  }
+}
+
+function updateVoiceUI() {
+  const toggleBtn = document.getElementById('btn-voice-toggle');
+  const toggleIcon = document.getElementById('voice-toggle-icon');
+  const toggleLabel = document.getElementById('voice-toggle-label');
+  if (toggleBtn) {
+    if (voiceEnabled) {
+      toggleBtn.classList.remove('off');
+      toggleBtn.classList.add('active');
+      if (toggleIcon) toggleIcon.textContent = '🔊';
+      if (toggleLabel) toggleLabel.textContent = 'Voice: ON';
+    } else {
+      toggleBtn.classList.remove('active');
+      toggleBtn.classList.add('off');
+      if (toggleIcon) toggleIcon.textContent = '🔇';
+      if (toggleLabel) toggleLabel.textContent = 'Voice: OFF';
+    }
+  }
+  updateVoiceStatus(isSpeakingStep);
+}
+
+function initVoiceSynthesis() {
+  try {
+    const savedVoice = localStorage.getItem('8085_voice_enabled');
+    if (savedVoice !== null) {
+      voiceEnabled = (savedVoice === 'true');
+    } else {
+      voiceEnabled = true; // Default ON on first visit
+    }
+    const savedSpeed = localStorage.getItem('8085_voice_speed_index');
+    if (savedSpeed !== null) {
+      const idx = parseInt(savedSpeed, 10);
+      if (idx >= 0 && idx <= 2) {
+        voiceSpeedIndex = idx;
+        currentVoiceRate = VOICE_RATES[idx];
+      }
+    }
+  } catch (e) {}
+
+  updateVoiceUI();
+
+  const speedSlider = document.getElementById('voice-speed-slider');
+  const speedVal = document.getElementById('voice-speed-val');
+  if (speedSlider) {
+    speedSlider.value = voiceSpeedIndex;
+  }
+  if (speedVal) {
+    speedVal.textContent = VOICE_LABELS[voiceSpeedIndex];
+  }
+
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    const unavail = document.getElementById('voice-unavailable-msg');
+    if (unavail) unavail.style.display = 'inline-block';
+    const pill = document.getElementById('voice-status-indicator');
+    if (pill) pill.style.display = 'none';
+    return;
+  }
+
+  const populateVoiceList = () => {
+    try {
+      const voices = window.speechSynthesis.getVoices() || [];
+      if (!voices || voices.length === 0) return;
+      availableVoices = voices;
+
+      const voiceSelect = document.getElementById('voice-select');
+      if (!voiceSelect) return;
+
+      const savedVoiceName = localStorage.getItem('8085_selected_voice_name');
+      voiceSelect.innerHTML = '';
+
+      let bestVoice = null;
+      if (savedVoiceName) {
+        bestVoice = voices.find(v => v.name === savedVoiceName);
+      }
+      if (!bestVoice) {
+        bestVoice = voices.find(v => v.lang.startsWith('en') && (
+          v.name.includes('Natural') || v.name.includes('Online (Natural)') ||
+          v.name.includes('Aria') || v.name.includes('Jenny') || v.name.includes('Guy')
+        ));
+      }
+      if (!bestVoice) {
+        bestVoice = voices.find(v => v.lang === 'en-US' || v.lang === 'en_US' || v.lang.startsWith('en-US'));
+      }
+      if (!bestVoice) {
+        bestVoice = voices.find(v => v.lang.startsWith('en-IN') || v.lang.startsWith('en'));
+      }
+      if (!bestVoice) {
+        bestVoice = voices.find(v => v.default) || voices[0];
+      }
+
+      selectedVoice = bestVoice;
+
+      const enVoices = voices.filter(v => v.lang && v.lang.startsWith('en'));
+      const otherVoices = voices.filter(v => !v.lang || !v.lang.startsWith('en'));
+      const sortedVoices = [...enVoices, ...otherVoices];
+
+      sortedVoices.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.name;
+        opt.textContent = `${v.name} (${v.lang})${v === bestVoice ? ' ★' : ''}`;
+        if (bestVoice && v.name === bestVoice.name) {
+          opt.selected = true;
+        }
+        voiceSelect.appendChild(opt);
+      });
+
+      const unavail = document.getElementById('voice-unavailable-msg');
+      if (unavail) unavail.style.display = 'none';
+    } catch (err) {
+      console.warn('Voice enumeration error:', err);
+    }
+  };
+
+  populateVoiceList();
+  if (window.speechSynthesis.onvoiceschanged !== undefined) {
+    window.speechSynthesis.onvoiceschanged = populateVoiceList;
+  }
+}
+
 const VIZ_REG_NAMES = { 0: 'B', 1: 'C', 2: 'D', 3: 'E', 4: 'H', 5: 'L', 6: 'M', 7: 'A' };
 const VIZ_REG_IDS = { A: 'reg-a', B: 'reg-b', C: 'reg-c', D: 'reg-d', E: 'reg-e', H: 'reg-h', L: 'reg-l', M: 'reg-m', PC: 'reg-pc', SP: 'reg-sp' };
 
@@ -1109,6 +1567,7 @@ function vizStopPlay() {
   const vb = document.getElementById('btn-vplay');
   if (vb) vb.textContent = '▶ Start Simulation';
   updateVideoScrubber(null);
+  cancelSpeech();
 }
 function vizSpeedDelay() {
   if (vizSpeed === 0.1) return 4500;
@@ -1210,17 +1669,23 @@ function vizShowStep(index) {
   updateVideoScrubber(index === -1 ? null : vizTrace[index]);
 }
 
-function vizStepOnce() {
+function vizStepOnce(isFromVoicePlay = false) {
   hideIntroCard();
   if (vizIndex + 1 < vizTrace.length) {
     vizIndex++;
     vizShowStep(vizIndex);
     animateMachineCycle(vizTrace[vizIndex]);
+    if (!isFromVoicePlay && voiceEnabled) {
+      speakCurrentStep();
+    }
     return vizTrace[vizIndex];
   }
   if (cpu.halted) {
     showToast('CPU is HALTED. Program completed.');
     if (vizTrace.length > 0) showHaltSummary(vizTrace[vizTrace.length - 1]);
+    if (!isFromVoicePlay && voiceEnabled) {
+      speakHaltSummary();
+    }
     return null;
   }
   const step = vizDoOneStep();
@@ -1235,6 +1700,9 @@ function vizStepOnce() {
   if (cpu.halted) {
     showHaltSummary(step);
   }
+  if (!isFromVoicePlay && voiceEnabled) {
+    speakCurrentStep();
+  }
   return step;
 }
 
@@ -1247,32 +1715,74 @@ function vizPlay() {
   const vb = document.getElementById('btn-vplay');
   if (vb) vb.textContent = '⏸ Pause Simulation';
   updateVideoScrubber(null);
-  const scheduleNext = () => { if (vizPlaying) vizTimer = setTimeout(tick, vizSpeedDelay()); };
-  const tick = () => {
+
+  if (!voiceEnabled) {
+    const scheduleNext = () => { if (vizPlaying) vizTimer = setTimeout(tick, vizSpeedDelay()); };
+    const tick = () => {
+      if (!vizPlaying) return;
+      if (cpu.halted) {
+        vizStopPlay();
+        const tMsg = (vizTrace.length > 0 && vizTrace[vizTrace.length - 1].tStatesTotal) ? ` (${vizTrace[vizTrace.length - 1].tStatesTotal} T-states)` : '';
+        showToast(`Program finished. CPU Halted.${tMsg}`);
+        showHaltSummary(vizTrace[vizTrace.length - 1]);
+        return;
+      }
+      const step = vizStepOnce(true);
+      if (!step || cpu.halted) {
+        vizStopPlay();
+        const tMsg = (vizTrace.length > 0 && vizTrace[vizTrace.length - 1].tStatesTotal) ? ` (${vizTrace[vizTrace.length - 1].tStatesTotal} T-states)` : '';
+        showToast(`Program finished. CPU Halted.${tMsg}`);
+        if (vizTrace.length > 0) showHaltSummary(vizTrace[vizTrace.length - 1]);
+        return;
+      }
+      if (autoPauseEachStep) {
+        vizStopPlay();
+        showToast('Step complete. Click "Continue to Next Step ❯" when ready.');
+        return;
+      }
+      scheduleNext();
+    };
+    vizTimer = setTimeout(tick, vizSpeedDelay());
+    return;
+  }
+
+  // Voice Narrator Playback: waits for voice onend before scheduling next step
+  const tickVoice = () => {
     if (!vizPlaying) return;
     if (cpu.halted) {
       vizStopPlay();
-      const tMsg = (vizTrace.length > 0 && vizTrace[vizTrace.length - 1].tStatesTotal) ? ` (${vizTrace[vizTrace.length - 1].tStatesTotal} T-states)` : '';
-      showToast(`Program finished. CPU Halted.${tMsg}`);
-      showHaltSummary(vizTrace[vizTrace.length - 1]);
-      return;
-    }
-    const step = vizStepOnce();
-    if (!step || cpu.halted) {
-      vizStopPlay();
-      const tMsg = (vizTrace.length > 0 && vizTrace[vizTrace.length - 1].tStatesTotal) ? ` (${vizTrace[vizTrace.length - 1].tStatesTotal} T-states)` : '';
-      showToast(`Program finished. CPU Halted.${tMsg}`);
       if (vizTrace.length > 0) showHaltSummary(vizTrace[vizTrace.length - 1]);
+      speakHaltSummary();
       return;
     }
-    if (autoPauseEachStep) {
+
+    const step = vizStepOnce(true);
+    if (!step) {
       vizStopPlay();
-      showToast('Step complete. Click "Continue to Next Step ❯" when ready.');
       return;
     }
-    scheduleNext();
+
+    speakCurrentStep(() => {
+      if (!vizPlaying) return;
+      if (cpu.halted) {
+        vizStopPlay();
+        if (vizTrace.length > 0) showHaltSummary(vizTrace[vizTrace.length - 1]);
+        speakHaltSummary();
+        return;
+      }
+      if (autoPauseEachStep) {
+        vizStopPlay();
+        showToast('Step complete. Click "Continue to Next Step ❯" when ready.');
+        return;
+      }
+      // Natural 500ms teacher breath pause between steps
+      vizTimer = setTimeout(() => {
+        if (vizPlaying) tickVoice();
+      }, 500);
+    });
   };
-  vizTimer = setTimeout(tick, vizSpeedDelay());
+
+  tickVoice();
 }
 
 function showHaltSummary(step) {
@@ -1302,7 +1812,7 @@ function showHaltSummary(step) {
   if (curKey === 'addition' || (!curKey && cpu.memory[0x2052] === 0x08)) {
     const sum = cpu.memory[0x2052];
     const carry = cpu.memory[0x2053];
-    head.textContent = `Done — the answer is ${sum} (${vizHex2(sum)}). It is stored at 2052H. Carry ${carry} is stored at 2053H.`;
+    head.textContent = `Done! The answer is 8. It is in box 2052H. The carry is zero, so nothing spilled over.`;
     note.textContent = `Note: Accumulator A shows ${vizHex2(cpu.a)} because A holds the carry (${vizHex2(cpu.a)}), not the sum (the sum was stored into memory at 2052H).`;
     if (btn1) {
       btn1.textContent = 'In Register A';
@@ -2087,6 +2597,7 @@ function setupVideoControls() {
   if (backBtn) backBtn.addEventListener('click', () => {
     vizStopPlay();
     vizShowStep(vizIndex - 1);
+    if (voiceEnabled) speakCurrentStep();
   });
 
   const stepBtn = document.getElementById('btn-vstep');
@@ -2115,6 +2626,71 @@ function setupVideoControls() {
     hideHaltSummary();
     showToast('CPU & Visualizer Reset');
   });
+
+  // Voice Narrator Controls (SpeechSynthesis)
+  const voiceToggleBtn = document.getElementById('btn-voice-toggle');
+  if (voiceToggleBtn) {
+    voiceToggleBtn.addEventListener('click', () => {
+      voiceEnabled = !voiceEnabled;
+      try {
+        localStorage.setItem('8085_voice_enabled', String(voiceEnabled));
+      } catch (e) {}
+      updateVoiceUI();
+      if (!voiceEnabled) {
+        cancelSpeech();
+        showToast('Voice: OFF (Visual mode only)');
+      } else {
+        showToast('Voice: ON (AI Teacher Narrator active)');
+        repeatCurrentStep();
+      }
+    });
+  }
+
+  const voiceRepeatBtn = document.getElementById('btn-voice-repeat');
+  if (voiceRepeatBtn) {
+    voiceRepeatBtn.addEventListener('click', () => {
+      repeatCurrentStep();
+    });
+  }
+
+  const voiceMuteBtn = document.getElementById('btn-voice-mute');
+  if (voiceMuteBtn) {
+    voiceMuteBtn.addEventListener('click', () => {
+      cancelSpeech();
+      showToast('Voice muted');
+    });
+  }
+
+  const voiceSelect = document.getElementById('voice-select');
+  if (voiceSelect) {
+    voiceSelect.addEventListener('change', () => {
+      const v = availableVoices.find(item => item.name === voiceSelect.value);
+      if (v) {
+        selectedVoice = v;
+        try {
+          localStorage.setItem('8085_selected_voice_name', v.name);
+        } catch (e) {}
+        showToast(`Voice changed to: ${v.name}`);
+        if (voiceEnabled) repeatCurrentStep();
+      }
+    });
+  }
+
+  const voiceSpeedSlider = document.getElementById('voice-speed-slider');
+  const voiceSpeedVal = document.getElementById('voice-speed-val');
+  if (voiceSpeedSlider) {
+    voiceSpeedSlider.addEventListener('input', (e) => {
+      const idx = parseInt(e.target.value, 10);
+      voiceSpeedIndex = idx;
+      currentVoiceRate = VOICE_RATES[idx];
+      if (voiceSpeedVal) voiceSpeedVal.textContent = VOICE_LABELS[idx];
+      try {
+        localStorage.setItem('8085_voice_speed_index', String(idx));
+      } catch (e) {}
+      showToast(`Voice speed: ${VOICE_LABELS[idx]}`);
+      if (voiceEnabled) repeatCurrentStep();
+    });
+  }
 
   const speedSel = document.getElementById('v-speed-sel');
   if (speedSel) {
@@ -2463,7 +3039,13 @@ function updateStoryboard(step) {
   let detail = step.narration;
   let analogy = 'The CPU moves bytes across its internal circuits.';
 
-  if (m === 'MVI') {
+  if (currentSampleKey === 'addition' && step.step >= 1 && step.step <= 10) {
+    headline = ADDITION_STORY_SENTENCES[step.step - 1];
+    detail = ADDITION_STORY_SENTENCES[step.step - 1];
+    const icons = ['📦', '📥', '📋', '📥', '➕', '🚦', '💾', '📋', '💾', '🛑'];
+    icon = icons[step.step - 1] || '⚙️';
+    analogy = `💡 <strong>Everyday Teacher Story:</strong> ${headline}`;
+  } else if (m === 'MVI') {
     const reg = opParts[0];
     const val = opParts[1];
     const decVal = vizParseHexToken(val) ?? val;
@@ -2675,7 +3257,40 @@ function updateStoryboard(step) {
       let whereAnswer = 'Result is in CPU registers / memory.';
       let whatChanged = (step.changed || []).map(c => `${c.label}: ${c.before} → ${c.after}`).join(', ') || 'No register changes.';
 
-      if (step.alu || ['ADD', 'ADI', 'ADC', 'SUB', 'SUI', 'SBB'].includes(m)) {
+      if (currentSampleKey === 'addition' && step.step >= 1 && step.step <= 10) {
+        happened = ADDITION_STORY_SENTENCES[step.step - 1];
+        if (step.step === 1) {
+          whereAnswer = "Carry box C is cleared to zero.";
+          whatChanged = "Pocket C set to 00H.";
+        } else if (step.step === 2) {
+          whereAnswer = "Number 5 is resting on Main Desk A.";
+          whatChanged = "Desk A loaded with 05H.";
+        } else if (step.step === 3) {
+          whereAnswer = "Number 5 is backed up in Helper Desk B.";
+          whatChanged = "Desk B loaded with 05H.";
+        } else if (step.step === 4) {
+          whereAnswer = "Number 3 is now on Main Desk A.";
+          whatChanged = "Desk A loaded with 03H.";
+        } else if (step.step === 5) {
+          whereAnswer = "The answer 8 (08H) is on Main Desk A.";
+          whatChanged = "Desk A = 8. Carry light is OFF.";
+        } else if (step.step === 6) {
+          whereAnswer = "Jump condition met (no carry occurred).";
+          whatChanged = "Program advances directly to NOCARRY.";
+        } else if (step.step === 7) {
+          whereAnswer = "The answer, 8, is safely saved in Box 2052H.";
+          whatChanged = "RAM box 2052H holds 08H.";
+        } else if (step.step === 8) {
+          whereAnswer = "Desk A now holds the carry (0).";
+          whatChanged = "Desk A holds 00H.";
+        } else if (step.step === 9) {
+          whereAnswer = "Carry 0 is stored into Memory Box 2053H.";
+          whatChanged = "RAM box 2053H holds 00H.";
+        } else if (step.step === 10) {
+          whereAnswer = "Story completed. Answer 8 in 2052H, carry 0 in 2053H.";
+          whatChanged = "CPU state is HALTED.";
+        }
+      } else if (step.alu || ['ADD', 'ADI', 'ADC', 'SUB', 'SUI', 'SBB'].includes(m)) {
         const a = step.alu;
         const op1 = a ? a.op1 : step.before.a;
         const op2 = a ? a.op2 : 0;
@@ -3012,6 +3627,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupPresetButtons();
   setupStoryboardControls();
   setupComponentExplainer();
+  initVoiceSynthesis();
   renderMemoryGrid(0x2000);
 
   // Auto-assemble default sample so video visualizer is ready immediately without clicking assemble!

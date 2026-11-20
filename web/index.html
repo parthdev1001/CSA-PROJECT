@@ -126,6 +126,11 @@
         <div class="sim-toolbar-top">
           <div class="video-controls-left sim-controls-left">
             <button id="btn-vplay" class="btn btn-success btn-lg btn-sim-play" title="Start / Pause CPU Simulation">▶ Start Simulation</button>
+            <button id="btn-voice-toggle" class="btn btn-voice active" title="Toggle AI Teacher Voice Narrator">
+              <span id="voice-toggle-icon">🔊</span> <span id="voice-toggle-label">Voice: ON</span>
+            </button>
+            <button id="btn-voice-repeat" class="btn btn-secondary" title="Repeat this step out loud">🔁 Repeat</button>
+            <button id="btn-voice-mute" class="btn btn-secondary" title="Mute voice immediately (stop talking)">🔇 Mute</button>
             <button id="btn-vback" class="btn btn-secondary" title="Step Back 1 Instruction">⏮ Back</button>
             <button id="btn-vstep" class="btn btn-secondary" title="Step Forward 1 Instruction">Next ⏭</button>
             <button id="btn-vreplay" class="btn btn-secondary" title="Replay Simulation from Step 1">↻ Replay</button>
@@ -152,6 +157,28 @@
               <span>Micro-Cycles</span>
             </label>
             <button id="btn-expand-viz" class="btn btn-secondary btn-sm btn-expand" title="Toggle Full Width / Expanded View">⛶ Expand View</button>
+          </div>
+        </div>
+
+        <!-- AI Voice Agent Narrator Toolbar (Native Browser speechSynthesis) -->
+        <div class="voice-toolbar-row" id="voice-toolbar-row">
+          <div class="voice-toolbar-left">
+            <span class="voice-badge-tag">👩‍🏫 Teacher Voice</span>
+            <div class="voice-picker-group">
+              <label for="voice-select">🎙️ Voice:</label>
+              <select id="voice-select" class="voice-select" title="Choose English Voice on this PC">
+                <option value="">Detecting natural voices...</option>
+              </select>
+            </div>
+            <div class="voice-speed-group">
+              <label for="voice-speed-slider">⚡ Voice Speed:</label>
+              <input type="range" id="voice-speed-slider" min="0" max="2" step="1" value="1" class="voice-slider" title="Voice Speed: Slow (0.8x) / Normal (0.95x) / Fast (1.15x)">
+              <span id="voice-speed-val" class="voice-speed-val">Normal (0.95x)</span>
+            </div>
+          </div>
+          <div class="voice-toolbar-right">
+            <span id="voice-status-indicator" class="voice-status-pill">🗣️ Ready</span>
+            <span id="voice-unavailable-msg" class="voice-unavailable-msg" style="display: none;">Voice unavailable on this PC — visual mode only</span>
           </div>
         </div>
 
@@ -470,6 +497,7 @@
           <div class="story-tag-wrap">
             <span class="story-badge">📖 LIVE CPU STORYBOARD</span>
             <span id="story-mode-pill" class="story-mode-pill">👶 Plain English Mode: ON</span>
+            <span id="story-voice-speaking-pill" class="story-voice-pill" style="display: none;">🗣️ Speaking...</span>
           </div>
           <div class="story-controls">
             <button id="btn-toggle-eli5" class="btn btn-secondary btn-sm" title="Toggle between Everyday English analogies and Technical Hex/Assembly">
@@ -515,7 +543,7 @@
       <div id="halt-summary-card" class="halt-summary-card" style="display: none;">
         <div class="halt-summary-header">
           <span class="halt-summary-icon">🎉</span>
-          <span id="halt-headline" class="halt-headline">Done — the answer is 8 (08H). It is stored at 2052H. Carry 0 is stored at 2053H.</span>
+          <span id="halt-headline" class="halt-headline">Done! The answer is 8. It is in box 2052H. The carry is zero, so nothing spilled over.</span>
         </div>
         <div id="halt-note" class="halt-note">Note: Accumulator A shows 00H because A holds the carry (00H), not the sum (the sum was stored into memory at 2052H).</div>
         <div id="halt-quiz-wrap" class="halt-quiz-wrap">
