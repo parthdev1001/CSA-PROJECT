@@ -212,10 +212,10 @@
               <feComposite in="SourceGraphic" in2="blur" operator="over" />
             </filter>
             <marker id="arrow-gold" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 1 L 8 5 L 0 9 z" fill="#f59e0b" />
+              <path d="M 0 1 L 8 5 L 0 9 z" class="svg-arrow-gold" fill="#f59e0b" />
             </marker>
             <marker id="arrow-cyan" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 1 L 8 5 L 0 9 z" fill="#00e5ff" />
+              <path d="M 0 1 L 8 5 L 0 9 z" class="svg-arrow-cyan" fill="#00e5ff" />
             </marker>
           </defs>
 
@@ -227,7 +227,7 @@
           <!-- 16-bit Address Bus (Gold) -->
           <path id="svg-path-addr" d="M 720 90 L 755 90 L 755 420 L 812 420" class="svg-bus bus-addr" />
           <g id="badge-addr-bus" transform="translate(778, 295) rotate(90)">
-            <rect x="-65" y="-10" width="130" height="20" rx="4" fill="#060c18" stroke="rgba(245, 158, 11, 0.55)" stroke-width="1.2" />
+            <rect x="-65" y="-10" width="130" height="20" rx="4" class="svg-bus-tag-bg bus-addr-tag-bg" stroke-width="1.2" />
             <text x="0" y="0" dominant-baseline="middle" class="svg-bus-label bus-addr-label" text-anchor="middle">16-BIT ADDRESS BUS</text>
           </g>
 
@@ -235,7 +235,7 @@
           <path id="svg-path-data-main" d="M 70 175 L 755 175" class="svg-bus bus-data" />
           <path id="svg-path-data-ext" d="M 755 175 L 812 175" class="svg-bus bus-data" />
           <g id="badge-data-bus">
-            <rect x="445" y="190" width="160" height="22" rx="4" fill="#060c18" stroke="rgba(0, 229, 255, 0.55)" stroke-width="1.2" />
+            <rect x="445" y="190" width="160" height="22" rx="4" class="svg-bus-tag-bg bus-data-tag-bg" stroke-width="1.2" />
             <text x="525" y="201" dominant-baseline="middle" class="svg-bus-label bus-data-label" text-anchor="middle">8-BIT DATA BUS (D7 - D0)</text>
           </g>
 
@@ -250,7 +250,7 @@
           <!-- Control Bus Lines (Purple) -->
           <path d="M 120 330 L 120 455 L 812 455" class="svg-bus bus-ctrl" />
           <g id="badge-ctrl-bus">
-            <rect x="425" y="460" width="190" height="22" rx="4" fill="#060c18" stroke="rgba(168, 85, 247, 0.55)" stroke-width="1.2" />
+            <rect x="425" y="460" width="190" height="22" rx="4" class="svg-bus-tag-bg bus-ctrl-tag-bg" stroke-width="1.2" />
             <text x="520" y="471" dominant-baseline="middle" class="svg-bus-label bus-ctrl-label" text-anchor="middle">CONTROL BUS (RD, WR, IO/M)</text>
           </g>
 
@@ -402,12 +402,12 @@
           <g id="svg-packet-layer">
             <!-- Animated Address Packet (Gold) -->
             <g id="svg-packet-addr" opacity="0">
-              <circle cx="0" cy="0" r="14" fill="#f59e0b" filter="url(#glow-gold)" />
+              <circle cx="0" cy="0" r="14" class="svg-packet-circle-addr" fill="#f59e0b" filter="url(#glow-gold)" />
               <text id="svg-packet-addr-text" x="0" y="4" text-anchor="middle" font-size="9" font-weight="700" fill="#000">2000</text>
             </g>
             <!-- Animated Data Packet (Cyan) -->
             <g id="svg-packet-data" opacity="0">
-              <circle cx="0" cy="0" r="14" fill="#00e5ff" filter="url(#glow-cyan)" />
+              <circle cx="0" cy="0" r="14" class="svg-packet-circle-data" fill="#00e5ff" filter="url(#glow-cyan)" />
               <text id="svg-packet-data-text" x="0" y="4" text-anchor="middle" font-size="9" font-weight="700" fill="#000">05H</text>
             </g>
           </g>
@@ -981,7 +981,7 @@
               <button id="btn-download-lst" class="btn btn-secondary" style="padding: 4px 8px;">Download .LST</button>
             </div>
           </div>
-          <div class="panel-body" style="padding: 12px; background: #080d14;">
+          <div class="panel-body" style="padding: 12px; background: var(--bg-editor);">
             <pre id="hex-output" style="font-family: var(--code-font); font-size: 12px; color: var(--accent-cyan); line-height: 1.6;">// Machine code will appear here after clicking Assemble.</pre>
           </div>
         </div>

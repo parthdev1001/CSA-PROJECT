@@ -1,5 +1,5 @@
 param(
-    [string]$Compiler = 'gcc',
+    [string]$Compiler = $(if (Get-Command gcc -ErrorAction SilentlyContinue) { 'gcc' } elseif (Get-Command zig -ErrorAction SilentlyContinue) { 'zig' } else { 'gcc' }),
     [switch]$Test
 )
 $ErrorActionPreference = 'Stop'

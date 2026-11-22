@@ -27,7 +27,7 @@ def ensure_assembler_binary():
         print("[Server] Compiling 8085 C Assembler binary...")
         try:
             if sys.platform == 'win32':
-                subprocess.run(['powershell.exe', '-File', '.\\build.ps1'], cwd=BASE_DIR, check=True)
+                subprocess.run(['powershell.exe', '-ExecutionPolicy', 'Bypass', '-File', '.\\build.ps1'], cwd=BASE_DIR, check=True)
             else:
                 subprocess.run(['make'], cwd=BASE_DIR, check=True)
             print("[Server] Compilation successful.")

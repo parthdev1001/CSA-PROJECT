@@ -2323,11 +2323,9 @@ function animateMachineCycle(step) {
       if (step.alu) {
         const aluPoly = document.querySelector('.svg-alu-poly');
         if (aluPoly) {
-          aluPoly.style.stroke = '#34d399';
-          aluPoly.style.filter = 'drop-shadow(0 0 24px #10b981)';
+          aluPoly.classList.add('alu-executing');
           setTimeout(() => {
-            aluPoly.style.stroke = '#10b981';
-            aluPoly.style.filter = 'drop-shadow(0 0 12px rgba(16, 185, 129, 0.3))';
+            aluPoly.classList.remove('alu-executing');
           }, Math.max(phaseTime, 300));
         }
       }
